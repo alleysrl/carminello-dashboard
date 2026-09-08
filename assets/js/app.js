@@ -69,7 +69,7 @@
     el("top").hidden = false;
     el("user").innerHTML = `<span>${esc(p.nome || p.email)}</span><button id="logout">Esci</button>`;
     el("logout").onclick = async () => { await db.auth.signOut(); location.hash = ""; renderLogin(); };
-    await loadAll(); route();
+    await loadAll(); route(); avviaTempoReale();
   }
 
   // ---------- dati ----------
@@ -94,6 +94,52 @@
   const tel = c => (c.telefono || (c.indirizzo && c.indirizzo.telefono) || "").replace(/\s+/g, "");
   const waLink = c => { let t = tel(c).replace(/[^\d+]/g, ""); if (!t) return null; if (t.startsWith("+")) t = t.slice(1); else if (!t.startsWith(CONFIG.WHATSAPP_PREFISSO)) t = CONFIG.WHATSAPP_PREFISSO + t; return "https://wa.me/" + t; };
   const daChiamare = () => D.profili.filter(c => ["rischio", "ritardo", "flessione"].includes(D.stat[c.id].stato));
+  const nuoviOrdini = () => D.ordini.filter(o => o.visto === false && o.stato !== "annullato");
+
+  // ---------- attenzione: titolo, numerino sull'icona, suono, notifica ----------
+  function aggiornaAttenzione() {
+    const n = nuoviOrdini().length;
+    document.title = (n ? "(" + n + ") " : "") + "Carminello Dashboard";
+    try { if (navigator.setAppBadge) { n ? navigator.setAppBadge(n) : navigator.clearAppBadge(); } } catch (e) {}
+  }
+  function beep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)(); const t0 = ctx.currentTime;
+      [[880, 0], [1175, 0.18]].forEach(([f, dt]) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = "sine"; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t0 + dt); g.gain.exponentialRampToValueAtTime(0.3, t0 + dt + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 0.35); o.connect(g).connect(ctx.destination); o.start(t0 + dt); o.stop(t0 + dt + 0.4); });
+    } catch (e) {}
+  }
+  function notifica(titolo, testo, url) {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    try { const n = new Notification(titolo, { body: testo, icon: "assets/icons/icon-192.png", badge: "assets/icons/icon-192.png", tag: "ordine" }); n.onclick = () => { window.focus(); if (url) location.hash = url; n.close(); }; } catch (e) {}
+  }
+  async function chiediPermessoNotifiche() {
+    if (!("Notification" in window)) { toast("Questo browser non supporta le notifiche", "err"); return; }
+    const r = await Notification.requestPermission();
+    if (r === "granted") { toast("Notifiche attivate su questo dispositivo", "ok"); notifica("Carminello Dashboard", "Le notifiche funzionano. Ti avviserò ad ogni nuovo ordine."); } else toast("Permesso negato: puoi cambiarlo dalle impostazioni del browser", "err");
+    route();
+  }
+  function onNuovoOrdine(o) {
+    const c = D.tuttiProfili.find(x => x.id === o.user_id); const a = o.indirizzo || {};
+    const chi = c ? nome(c) : (a.ragione_sociale || ((a.nome || "") + " " + (a.cognome || "")).trim() || "cliente");
+    const testo = "Ordine n. " + o.numero + " da " + chi + ": " + o.cartoni + " cartoni, " + money(o.totale) + " (" + PM[o.metodo_pagamento] + ")";
+    toast("Nuovo ordine! " + testo, "ok"); beep(); notifica("Nuovo ordine Carminello", testo, "#/ordini");
+  }
+
+  // ---------- tempo reale + controllo periodico ----------
+  let rtChannel = null, pollTimer = null;
+  function avviaTempoReale() {
+    if (DEMO || rtChannel) return;
+    rtChannel = db.channel("dash-ordini")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "orders" }, async payload => { await loadAll(); onNuovoOrdine(payload.new); aggiornaAttenzione(); route(); })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "orders" }, async () => { await loadAll(); aggiornaAttenzione(); renderNav(currentPage); })
+      .subscribe();
+    // rete di sicurezza: ogni 60 secondi conta gli ordini non visti
+    pollTimer = setInterval(async () => {
+      const { count, error } = await db.from("orders").select("id", { count: "exact", head: true }).eq("visto", false);
+      if (!error && count != null && count !== nuoviOrdini().length) { const prima = new Set(nuoviOrdini().map(o => o.id)); await loadAll(); nuoviOrdini().filter(o => !prima.has(o.id)).forEach(onNuovoOrdine); aggiornaAttenzione(); route(); }
+    }, 60000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+  }
   const ultimaNota = c => (D.noteBy[c.id] || [])[0];
 
   // ---------- navigazione ----------
@@ -104,9 +150,11 @@
     ["ordini", "Ordini", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16l-1.5 12h-13z"/><path d="M8 7a4 4 0 0 1 8 0"/></svg>'],
     ["impostazioni", "Impostazioni", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>']
   ];
+  let currentPage = "cruscotto";
   function renderNav(cur) {
-    const n = daChiamare().length;
-    el("nav").innerHTML = PAGES.map(([k, l, ic]) => `<a href="#/${k}" class="${cur === k ? "on" : ""}">${ic}${l}${k === "chiamare" && n ? `<span class="cnt">${n}</span>` : ""}</a>`).join("");
+    currentPage = cur; const n = daChiamare().length, no = nuoviOrdini().length;
+    el("nav").innerHTML = PAGES.map(([k, l, ic]) => `<a href="#/${k}" class="${cur === k ? "on" : ""}">${ic}${l}${k === "chiamare" && n ? `<span class="cnt">${n}</span>` : ""}${k === "ordini" && no ? `<span class="cnt blink">${no}</span>` : ""}</a>`).join("");
+    aggiornaAttenzione();
   }
   function route() {
     const h = location.hash.replace(/^#\/?/, "") || "cruscotto"; const [page, arg] = h.split("/");
@@ -152,7 +200,9 @@
     const top = D.profili.map(c => ({ c, m: Stats.periodo(D.byUser[c.id] || [], m0, new Date(now.getFullYear(), now.getMonth() + 1, 1)) })).filter(x => x.m.n).sort((a, b) => b.m.totale - a.m.totale).slice(0, 5);
     el("view").innerHTML = `
       <div class="page-title"><h1>Cruscotto</h1><span class="sub">${now.toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" })}</span></div>
+      ${("Notification" in window) && Notification.permission === "default" && !DEMO ? '<div class="notice info" style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap"><span>Vuoi un avviso su questo dispositivo ad ogni nuovo ordine?</span><button class="btn sm" id="k-notif">Attiva le notifiche</button></div>' : ""}
       <div class="kpis">
+        ${nuoviOrdini().length ? `<div class="kpi alert"><div class="l">Nuovi ordini</div><div class="v warn">${nuoviOrdini().length}</div><div class="d"><a href="#/ordini">apri gli ordini</a></div></div>` : ""}
         <div class="kpi"><div class="l">Oggi</div><div class="v">${money(oggi.totale)}</div><div class="d">${oggi.n} ordini · ${oggi.cartoni} cartoni</div></div>
         <div class="kpi"><div class="l">Ultimi 7 giorni</div><div class="v">${money(settimana.totale)}</div><div class="d">${settimana.n} ordini · ${settimana.cartoni} cartoni</div></div>
         <div class="kpi"><div class="l">Questo mese</div><div class="v">${money(mese.totale)}</div><div class="d ${delta == null ? "" : delta >= 0 ? "up" : "down"}">${mese.n} ordini · ${mese.cartoni} cartoni${delta == null ? "" : " · " + (delta >= 0 ? "+" : "") + delta + "% sul mese scorso"}</div></div>
@@ -176,7 +226,7 @@
         ${top.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Cliente</th><th>Tipo</th><th class="num">Ordini</th><th class="num">Cartoni</th><th class="num">Speso</th></tr></thead><tbody>
         ${top.map(x => `<tr class="click" data-go="#/cliente/${x.c.id}"><td><b>${esc(nome(x.c))}</b></td><td><span class="pill ${x.c.tipo}">${TIPO[x.c.tipo]}</span></td><td class="num">${x.m.n}</td><td class="num">${x.m.cartoni}</td><td class="num"><b>${money(x.m.totale)}</b></td></tr>`).join("")}</tbody></table></div>` : '<p class="muted">Nessun ordine questo mese.</p>'}
       </div>`;
-    bindRows();
+    bindRows(); const kn = el("k-notif"); if (kn) kn.onclick = chiediPermessoNotifiche;
   }
   function bindRows() { el("view").querySelectorAll("[data-go]").forEach(r => r.addEventListener("click", () => location.hash = r.getAttribute("data-go"))); }
 
@@ -344,8 +394,8 @@
       <div class="page-title"><h1>Ordini</h1><span class="sub">${list.length} in elenco</span></div>
       <div class="seg">${[["attivi", "Da gestire"], ["da_pagare", "Da pagare"], ["da_spedire", "Da spedire"], ["spedito", "Spediti"], ["annullato", "Annullati"], ["tutti", "Tutti"]].map(([k, l]) => `<button class="${ordF === k ? "on" : ""}" data-of="${k}">${l}</button>`).join("")}</div>
       <div class="card"><div class="table-wrap"><table class="data"><thead><tr><th>N.</th><th>Data</th><th>Cliente</th><th>Pagamento</th><th class="num">Cartoni</th><th class="num">Totale</th><th>Stato</th><th>Azioni</th></tr></thead><tbody>
-        ${list.map(o => { const c = cli(o.user_id); const a = o.indirizzo || {}; return `<tr>
-          <td><b>${o.numero}</b></td><td class="small nowrap">${dateL(o.created_at)}</td>
+        ${list.map(o => { const c = cli(o.user_id); const a = o.indirizzo || {}; return `<tr class="${o.visto === false ? "nuovo" : ""}">
+          <td><b>${o.numero}</b>${o.visto === false ? '<br><span class="pill rischio">Nuovo</span>' : ""}</td><td class="small nowrap">${dateL(o.created_at)}</td>
           <td><a href="#/cliente/${o.user_id}"><b>${esc(nome(Object.keys(c).length ? c : a))}</b></a><br><span class="small muted">${TIPO[o.tipo]} · ${esc(a.citta || "")}</span></td>
           <td>${PM[o.metodo_pagamento]}<br><span class="pill ${o.pagato ? "paid" : "unpaid"}">${o.pagato ? "Pagato" : "Non pagato"}</span></td>
           <td class="num">${o.cartoni}</td><td class="num"><b>${money(o.totale)}</b></td><td><span class="pill ${o.stato}">${ST[o.stato]}</span></td>
@@ -357,6 +407,10 @@
           </div></td></tr>`; }).join("") || '<tr><td colspan="8" class="muted">Nessun ordine.</td></tr>'}
       </tbody></table></div></div>`;
     el("view").querySelectorAll("[data-of]").forEach(b => b.onclick = () => { ordF = b.getAttribute("data-of"); vOrdini(); });
+    // gli ordini mostrati ora sono "visti": il lampeggio si spegne
+    const daSegnare = list.filter(o => o.visto === false).map(o => o.id);
+    if (daSegnare.length && !DEMO) { db.rpc("admin_segna_ordini_visti", { p_ids: daSegnare }).then(({ error }) => { if (!error) { daSegnare.forEach(id => { const o = D.ordini.find(x => x.id === id); if (o) o.visto = true; }); renderNav("ordini"); } }); }
+    else if (daSegnare.length) { daSegnare.forEach(id => { const o = D.ordini.find(x => x.id === id); if (o) o.visto = true; }); setTimeout(() => renderNav("ordini"), 1500); }
     const upd = async (id, stato, pagato) => { const { error } = await db.rpc("admin_aggiorna_ordine", { p_id: id, p_stato: stato, p_pagato: pagato }); if (error) toast(error.message, "err"); else { toast("Ordine aggiornato", "ok"); await loadAll(); vOrdini(); } };
     el("view").querySelectorAll("[data-paid]").forEach(b => b.onclick = () => upd(b.getAttribute("data-paid"), null, true));
     el("view").querySelectorAll("[data-ship]").forEach(b => b.onclick = () => upd(b.getAttribute("data-ship"), "spedito", null));
@@ -391,9 +445,16 @@
           <div class="card"><h2>Cosa significano gli stati</h2>
             ${Object.entries(Stats.STATI).sort((a, b) => a[1].prio - b[1].prio).map(([k, v]) => `<p style="margin:.4rem 0"><span class="pill ${v.colore}">${v.label}</span> <span class="small">${esc(v.desc.replace(/\{(\w+)\}/g, (m, key) => cfg[key]))}</span></p>`).join("")}
           </div>
+          <div class="card"><h2>Avvisi sul dispositivo</h2>
+            <p class="small">Il pulsante <b>Ordini</b> lampeggia con il numero degli ordini che non hai ancora aperto. In più, quando arriva un ordine, la dashboard suona e mostra un avviso. Se installi la dashboard sulla schermata Home, il numerino compare anche sull'icona.</p>
+            <p class="small">Stato notifiche del browser: <b>${!("Notification" in window) ? "non supportate" : Notification.permission === "granted" ? "attive" : Notification.permission === "denied" ? "bloccate (sbloccale dalle impostazioni del browser)" : "da attivare"}</b></p>
+            ${("Notification" in window) && Notification.permission !== "granted" ? '<button class="btn" id="i-notif">Attiva le notifiche</button> ' : ""}<button class="btn ghost" id="i-test">Prova il suono</button>
+          </div>
           <div class="card"><h2>Altre impostazioni</h2><p class="small">IBAN per il bonifico, email degli avvisi, fasce di spedizione, prodotti e prezzi ai privati si gestiscono nel pannello del negozio.</p><a class="btn ghost" href="${CONFIG.SHOP_URL}/admin.html" target="_blank" rel="noopener">Apri il pannello del negozio</a></div>
         </div>
       </div>`;
+    const inb = el("i-notif"); if (inb) inb.onclick = chiediPermessoNotifiche;
+    el("i-test").onclick = () => { beep(); toast("Così suona un nuovo ordine", "ok"); };
     el("a-save").onclick = async () => {
       const v = { ritardo_x: Number(el("a-ritardo").value), rischio_x: Number(el("a-rischio").value), perso_x: Number(el("a-perso").value), perso_giorni: Number(el("a-persog").value), nuovo_giorni: Number(el("a-nuovo").value), flessione_pct: Number(el("a-fless").value) };
       const { error } = await db.rpc("admin_salva_impostazione", { p_chiave: "avvisi", p_valore: v }); if (error) toast(error.message, "err"); else { toast("Regole salvate", "ok"); refresh(); }

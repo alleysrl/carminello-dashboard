@@ -32,7 +32,8 @@ const Demo = (function () {
     profili.push({ id: "b2b-new-1", email: "nuovo@locale.it", tipo: "b2b", ruolo: "cliente", nome: "Mario", cognome: "Esposito", telefono: "3331234567", ragione_sociale: "Pizzeria Nuova Apertura", piva: "01234567890", indirizzo: { citta: "Firenze" }, approvato: false, created_at: new Date(now - 2 * DAY).toISOString(), prezzi_cliente: [] });
     note.push({ id: "n1", user_id: "b2b-4", tipo: "chiamata", testo: "Ha finito le scorte solo ora, riordina la prossima settimana", esito: "riordina", created_at: new Date(now - 2 * DAY).toISOString() });
     note.push({ id: "n2", user_id: "b2b-9", tipo: "whatsapp", testo: "Ha cambiato fornitore per il prezzo. Riproviamo a settembre.", esito: "perso", created_at: new Date(now - 40 * DAY).toISOString() });
-    return { profili, ordini: ordini.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)), note, imp: { avvisi: {} } };
+    ordini.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); ordini.forEach((o, i) => o.visto = i >= 2);
+    return { profili, ordini, note, imp: { avvisi: {} } };
   }
   return { genera };
 })();
