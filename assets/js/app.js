@@ -69,7 +69,7 @@
     el("top").hidden = false;
     el("user").innerHTML = `<span>${esc(p.nome || p.email)}</span><button id="logout">Esci</button>`;
     el("logout").onclick = async () => { await db.auth.signOut(); location.hash = ""; renderLogin(); };
-    await loadAll(); route(); avviaTempoReale();
+    await loadAll(); route(); avviaTempoReale(); swReg();
   }
 
   // ---------- dati ----------
@@ -112,11 +112,43 @@
     if (!("Notification" in window) || Notification.permission !== "granted") return;
     try { const n = new Notification(titolo, { body: testo, icon: "assets/icons/icon-192.png", badge: "assets/icons/icon-192.png", tag: "ordine" }); n.onclick = () => { window.focus(); if (url) location.hash = url; n.close(); }; } catch (e) {}
   }
+  // ---------- notifiche push (funzionano anche ad app chiusa) ----------
+  const standalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
+  async function swReg() { if (!("serviceWorker" in navigator)) return null; try { return await navigator.serviceWorker.register("sw.js"); } catch (e) { console.error("sw", e); return null; } }
+  function b64ToU8(b) { const p = "=".repeat((4 - b.length % 4) % 4); const s = (b + p).replace(/-/g, "+").replace(/_/g, "/"); const r = atob(s); return Uint8Array.from([...r].map(c => c.charCodeAt(0))); }
+  async function pushAttiva() {
+    const reg = await swReg(); if (!reg) return null;
+    await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(CONFIG.VAPID_PUBLIC_KEY) });
+    const disp = (isIOS() ? "iPhone/iPad" : /Android/.test(navigator.userAgent) ? "Android" : /Mac/.test(navigator.userAgent) ? "Mac" : "altro") + (standalone() ? " (app)" : " (browser)");
+    const { error } = await db.rpc("admin_salva_push", { p_sub: sub.toJSON(), p_dispositivo: disp });
+    if (error) throw new Error(error.message);
+    return sub;
+  }
+  async function pushStato() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return "non_supportato";
+    const reg = await navigator.serviceWorker.getRegistration(); if (!reg) return "spento";
+    const sub = await reg.pushManager.getSubscription(); return sub ? "attivo" : "spento";
+  }
   async function chiediPermessoNotifiche() {
     if (!("Notification" in window)) { toast("Questo browser non supporta le notifiche", "err"); return; }
+    if (isIOS() && !standalone()) { toast("Su iPhone: prima aggiungi la dashboard alla schermata Home (Condividi → Aggiungi alla schermata Home), poi attiva da lì", "err"); return; }
     const r = await Notification.requestPermission();
-    if (r === "granted") { toast("Notifiche attivate su questo dispositivo", "ok"); notifica("Carminello Dashboard", "Le notifiche funzionano. Ti avviserò ad ogni nuovo ordine."); } else toast("Permesso negato: puoi cambiarlo dalle impostazioni del browser", "err");
+    if (r !== "granted") { toast("Permesso negato: puoi cambiarlo dalle impostazioni del browser", "err"); route(); return; }
+    try {
+      if (DEMO) { toast("Modalità prova: le notifiche non vengono registrate", "err"); return; }
+      const sub = await pushAttiva();
+      if (sub) toast("Notifiche attivate: arriveranno anche ad app chiusa", "ok"); else toast("Notifiche attive solo con la dashboard aperta", "ok");
+    } catch (e) { console.error(e); toast("Notifiche attive solo con la dashboard aperta (" + e.message + ")", "err"); }
     route();
+  }
+  async function provaPush() {
+    if (DEMO) { toast("Modalità prova", "err"); return; }
+    const { data, error } = await db.functions.invoke("notifica", { body: { type: "TEST" } });
+    if (error || !data || data.error) toast("Prova fallita: " + ((data && data.error) || (error && error.message) || "?"), "err");
+    else toast(data.inviate ? "Notifica di prova inviata a " + data.inviate + " dispositivo/i: dovrebbe comparire tra pochi secondi" : "Nessun dispositivo registrato: premi prima 'Attiva le notifiche'", data.inviate ? "ok" : "err");
   }
   function onNuovoOrdine(o) {
     const c = D.tuttiProfili.find(x => x.id === o.user_id); const a = o.indirizzo || {};
@@ -447,13 +479,16 @@
           </div>
           <div class="card"><h2>Avvisi sul dispositivo</h2>
             <p class="small">Il pulsante <b>Ordini</b> lampeggia con il numero degli ordini che non hai ancora aperto. In più, quando arriva un ordine, la dashboard suona e mostra un avviso. Se installi la dashboard sulla schermata Home, il numerino compare anche sull'icona.</p>
-            <p class="small">Stato notifiche del browser: <b>${!("Notification" in window) ? "non supportate" : Notification.permission === "granted" ? "attive" : Notification.permission === "denied" ? "bloccate (sbloccale dalle impostazioni del browser)" : "da attivare"}</b></p>
-            ${("Notification" in window) && Notification.permission !== "granted" ? '<button class="btn" id="i-notif">Attiva le notifiche</button> ' : ""}<button class="btn ghost" id="i-test">Prova il suono</button>
+            <p class="small">Permesso del browser: <b>${!("Notification" in window) ? "non supportato" : Notification.permission === "granted" ? "concesso" : Notification.permission === "denied" ? "bloccato (sbloccalo dalle impostazioni del browser)" : "da concedere"}</b> · Push su questo dispositivo: <b id="i-push-stato">controllo…</b></p>
+            ${isIOS() && !standalone() ? '<div class="notice warn">Su iPhone le notifiche funzionano solo dalla dashboard aggiunta alla schermata Home: Condividi → "Aggiungi alla schermata Home", poi apri l\'icona e attiva da lì.</div>' : ""}
+            <div class="actions"><button class="btn" id="i-notif">Attiva le notifiche su questo dispositivo</button><button class="btn ghost" id="i-push-test">Invia una notifica di prova</button><button class="btn ghost" id="i-test">Prova il suono</button></div>
           </div>
           <div class="card"><h2>Altre impostazioni</h2><p class="small">IBAN per il bonifico, email degli avvisi, fasce di spedizione, prodotti e prezzi ai privati si gestiscono nel pannello del negozio.</p><a class="btn ghost" href="${CONFIG.SHOP_URL}/admin.html" target="_blank" rel="noopener">Apri il pannello del negozio</a></div>
         </div>
       </div>`;
     const inb = el("i-notif"); if (inb) inb.onclick = chiediPermessoNotifiche;
+    el("i-push-test").onclick = provaPush;
+    pushStato().then(st => { const x = el("i-push-stato"); if (x) x.textContent = { attivo: "attive (anche ad app chiusa)", spento: "non attive", non_supportato: "non supportate da questo browser" }[st]; });
     el("i-test").onclick = () => { beep(); toast("Così suona un nuovo ordine", "ok"); };
     el("a-save").onclick = async () => {
       const v = { ritardo_x: Number(el("a-ritardo").value), rischio_x: Number(el("a-rischio").value), perso_x: Number(el("a-perso").value), perso_giorni: Number(el("a-persog").value), nuovo_giorni: Number(el("a-nuovo").value), flessione_pct: Number(el("a-fless").value) };
