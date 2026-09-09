@@ -477,7 +477,7 @@
           <div class="card"><h2>Cosa significano gli stati</h2>
             ${Object.entries(Stats.STATI).sort((a, b) => a[1].prio - b[1].prio).map(([k, v]) => `<p style="margin:.4rem 0"><span class="pill ${v.colore}">${v.label}</span> <span class="small">${esc(v.desc.replace(/\{(\w+)\}/g, (m, key) => cfg[key]))}</span></p>`).join("")}
           </div>
-          <div class="card"><h2>Avvisi sul dispositivo</h2>
+          <div class="card"><h2>Avvisi sul dispositivo <span class="muted small" style="font-weight:400">· versione ${CONFIG.VERSIONE}</span></h2>
             <p class="small">Il pulsante <b>Ordini</b> lampeggia con il numero degli ordini che non hai ancora aperto. In più, quando arriva un ordine, la dashboard suona e mostra un avviso. Se installi la dashboard sulla schermata Home, il numerino compare anche sull'icona.</p>
             <p class="small">Permesso del browser: <b>${!("Notification" in window) ? "non supportato" : Notification.permission === "granted" ? "concesso" : Notification.permission === "denied" ? "bloccato (sbloccalo dalle impostazioni del browser)" : "da concedere"}</b> · Push su questo dispositivo: <b id="i-push-stato">controllo…</b></p>
             ${isIOS() && !standalone() ? '<div class="notice warn">Su iPhone le notifiche funzionano solo dalla dashboard aggiunta alla schermata Home: Condividi → "Aggiungi alla schermata Home", poi apri l\'icona e attiva da lì.</div>' : ""}
