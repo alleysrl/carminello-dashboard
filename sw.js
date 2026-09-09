@@ -6,7 +6,7 @@ self.addEventListener("activate", e => e.waitUntil(self.clients.claim()));
 self.addEventListener("push", e => {
   let d = {}; try { d = e.data ? e.data.json() : {}; } catch (_) { d = { title: "Carminello", body: e.data ? e.data.text() : "" }; }
   const p = [self.registration.showNotification(d.title || "Carminello Dashboard", {
-    body: d.body || "", icon: "assets/icons/icon-192.png", badge: "assets/icons/icon-192.png", tag: d.tag || "carminello-ordine", renotify: true, data: { url: d.url || "#/ordini" }
+    body: d.body || "", icon: "assets/icons/icon-192.png", badge: "assets/icons/icon-192.png", tag: d.tag || ("carminello-" + Date.now()), renotify: true, vibrate: [200, 100, 200], requireInteraction: false, data: { url: d.url || "#/ordini" }
   })];
   if (typeof d.badge === "number" && "setAppBadge" in self.navigator) p.push(self.navigator.setAppBadge(d.badge).catch(() => {}));
   e.waitUntil(Promise.all(p));
