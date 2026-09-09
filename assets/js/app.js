@@ -4,7 +4,8 @@
    ========================================================================== */
 (function () {
   "use strict";
-  const dbReal = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+  // storageKey: sessione separata da quella del negozio (stesso dominio GitHub Pages)
+  const dbReal = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY, { auth: { storageKey: "carminello-dashboard-auth" } });
   const db = /[?&]demo=1/.test(location.search) ? { auth: dbReal.auth, from: () => ({ select: () => ({ eq: () => ({ order: async () => ({ data: [{ id: "base-33-cartone-20", nome_it: "Base Pizza Carminello 33 cm — cartone da 20" }] }) }) }) }), rpc: async () => ({ error: { message: "Modalità prova: le modifiche non vengono salvate" } }) } : dbReal;
   const el = id => document.getElementById(id);
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
