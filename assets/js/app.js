@@ -402,6 +402,10 @@
             <div class="row"><div class="field"><select id="c-tipo">${Object.entries(TIPO).map(([k, v]) => `<option value="${k}" ${c.tipo === k ? "selected" : ""}>${v}</option>`).join("")}</select></div><div class="field"><button class="btn ghost block" id="c-tipo-save">Cambia tipo</button></div></div>
             <p class="small muted" style="margin:0">Serve se un cliente si è registrato con il tipo sbagliato, o se un locale diventa rivenditore.</p>
           </div>
+          <div class="card"><h2>Elimina cliente</h2>
+            <p class="small muted">Cancella l'account con tutti i suoi ordini, note e prezzi. Serve solo per account di prova o creati per errore: per un cliente vero è meglio non farlo, si perde lo storico.</p>
+            <button class="btn red" id="c-elimina">Elimina definitivamente</button>
+          </div>
           <div class="card"><h2>Note e contatti <span class="muted small">(${note.length})</span></h2>
             ${note.length ? note.map(n => `<div class="note"><div class="m">${dateL(n.created_at)} · ${NOTA_TIPO[n.tipo] || n.tipo}${n.esito ? ' · <span class="esito">' + esc(n.esito) + "</span>" : ""} <a href="#" data-delnota="${n.id}" class="muted" title="Elimina">✕</a></div>${esc(n.testo)}</div>`).join("") : '<p class="muted small">Nessuna nota. Usa "Segna contatto" dopo una chiamata.</p>'}
           </div>
@@ -415,6 +419,12 @@
       const { error } = await db.rpc("admin_imposta_cliente", { p_user_id: c.id, p_approvato: true, p_prezzi: p }); if (error) toast(error.message, "err"); else { toast("Cliente attivato", "ok"); refresh(); }
     };
     const sosp = el("c-sospendi"); if (sosp) sosp.onclick = async () => { const { error } = await db.rpc("admin_imposta_cliente", { p_user_id: c.id, p_approvato: false, p_prezzi: {} }); if (error) toast(error.message, "err"); else { toast("Cliente sospeso", "ok"); refresh(); } };
+    el("c-elimina").onclick = async () => {
+      if (!confirm("Eliminare definitivamente " + nome(c) + " con tutti i suoi ordini? Non si può annullare.")) return;
+      if (prompt('Per confermare scrivi ELIMINA') !== "ELIMINA") return;
+      const { error } = await db.rpc("admin_elimina_cliente", { p_user_id: c.id });
+      if (error) toast(error.message, "err"); else { toast("Cliente eliminato", "ok"); location.hash = "#/clienti/tutti"; refresh(); }
+    };
     el("c-tipo-save").onclick = async () => { const { error } = await db.rpc("admin_cambia_tipo", { p_user_id: c.id, p_tipo: el("c-tipo").value }); if (error) toast(error.message, "err"); else { toast("Tipo aggiornato", "ok"); refresh(); } };
   }
 
