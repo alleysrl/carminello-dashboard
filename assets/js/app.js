@@ -12,8 +12,8 @@
   const money = n => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(n || 0));
   const dateS = d => d ? new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "—";
   const dateL = d => d ? new Date(d).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
-  const TIPO = { b2c: "Privato", b2b: "Locale", rivenditore: "Rivenditore" };
-  const TIPI_PL = { b2c: "Privati", b2b: "Locali", rivenditore: "Rivenditori" };
+  const TIPO = { b2c: "Privato", b2b: "Esercente", rivenditore: "Rivenditore" };
+  const TIPI_PL = { b2c: "Privati", b2b: "Esercenti", rivenditore: "Rivenditori" };
   const PM = { carta: "Carta", bonifico: "Bonifico", contrassegno: "Contrassegno" };
   const ST = { da_pagare: "Da pagare", da_spedire: "Da spedire", spedito: "Spedito", annullato: "Annullato" };
   const NOTA_TIPO = { chiamata: "Telefonata", whatsapp: "WhatsApp", email: "Email", nota: "Nota" };
@@ -246,7 +246,7 @@
       <div class="card">
         <h2>Cartoni per mese, ultimi 12 mesi</h2>
         ${barChart(serie, { val: s => s.cartoni, stack: true })}
-        <div class="legend"><span><i style="background:var(--green)"></i>Locali</span><span><i style="background:var(--blue)"></i>Rivenditori</span><span><i style="background:#9aa891"></i>Privati</span></div>
+        <div class="legend"><span><i style="background:var(--green)"></i>Esercenti</span><span><i style="background:var(--blue)"></i>Rivenditori</span><span><i style="background:#9aa891"></i>Privati</span></div>
       </div>
       <div class="grid three">
         ${perTipo.map(x => `<div class="card"><h3><span class="pill ${x.t}">${TIPI_PL[x.t]}</span></h3>
@@ -330,10 +330,10 @@
     el("view").innerHTML = `
       <div class="page-title"><h1>Clienti</h1><span class="sub">${list.length} in elenco</span></div>
       <div class="seg">
-        ${[["b2b", "Locali"], ["rivenditore", "Rivenditori"], ["b2c", "Privati"], ["tutti", "Tutti"], ["attivare", "Da attivare"]].map(([k, l]) => `<button class="${cliSeg === k ? "on" : ""}" data-seg="${k}">${l}${counts[k] != null ? `<span class="cnt">${counts[k]}</span>` : ""}</button>`).join("")}
+        ${[["b2b", "Esercenti"], ["rivenditore", "Rivenditori"], ["b2c", "Privati"], ["tutti", "Tutti"], ["attivare", "Da attivare"]].map(([k, l]) => `<button class="${cliSeg === k ? "on" : ""}" data-seg="${k}">${l}${counts[k] != null ? `<span class="cnt">${counts[k]}</span>` : ""}</button>`).join("")}
         <input class="search" id="cli-q" placeholder="Cerca nome, città, email, P.IVA…" value="${esc(cliQ)}" style="margin-left:auto">
       </div>
-      ${cliSeg === "attivare" ? '<div class="notice info">Questi clienti si sono registrati come locale o rivenditore ma non hanno ancora un prezzo. Apri la scheda, scrivi il prezzo concordato e attivali.</div>' : ""}
+      ${cliSeg === "attivare" ? '<div class="notice info">Questi clienti si sono registrati come esercente o rivenditore ma non hanno ancora un prezzo. Apri la scheda, scrivi il prezzo concordato e attivali.</div>' : ""}
       <div class="card"><div class="table-wrap"><table class="data"><thead><tr>
         ${th("nome", "Cliente")}${th("stato", "Stato")}${th("n", "Ordini", 1)}${th("cartoni", "Cartoni", 1)}${th("speso", "Speso", 1)}${th("ultimo", "Ultimo ordine")}${th("intervallo", "Ogni", 1)}${th("atteso", "Prossimo atteso")}${th("trend", "Trend 3 mesi", 1)}
       </tr></thead><tbody>
@@ -400,7 +400,7 @@
           </div>` : ""}
           <div class="card"><h2>Tipo di cliente</h2>
             <div class="row"><div class="field"><select id="c-tipo">${Object.entries(TIPO).map(([k, v]) => `<option value="${k}" ${c.tipo === k ? "selected" : ""}>${v}</option>`).join("")}</select></div><div class="field"><button class="btn ghost block" id="c-tipo-save">Cambia tipo</button></div></div>
-            <p class="small muted" style="margin:0">Serve se un cliente si è registrato con il tipo sbagliato, o se un locale diventa rivenditore.</p>
+            <p class="small muted" style="margin:0">Serve se un cliente si è registrato con il tipo sbagliato, o se un esercente diventa rivenditore.</p>
           </div>
           <div class="card"><h2>Elimina cliente</h2>
             <p class="small muted">Cancella l'account con tutti i suoi ordini, note e prezzi. Serve solo per account di prova o creati per errore: per un cliente vero è meglio non farlo, si perde lo storico.</p>
