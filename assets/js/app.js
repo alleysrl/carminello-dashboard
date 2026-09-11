@@ -88,13 +88,15 @@
       db.from("impostazioni").select("chiave,valore")
     ]);
     if (p.error || o.error) { toast("Errore nel caricamento: " + ((p.error || o.error).message), "err"); }
-    D.profili = (p.data || []).filter(x => x.ruolo !== "agente" && (x.ruolo !== "admin" || (x.prezzi_cliente && x.prezzi_cliente.length) || (o.data || []).some(y => y.user_id === x.id)));
-    D.tuttiProfili = (p.data || []).filter(x => x.ruolo !== "agente");
+    // Solo i clienti veri: il titolare (admin) e gli agenti non compaiono mai tra i clienti, e i loro ordini di prova non entrano nelle statistiche
+    const nonClienti = new Set((p.data || []).filter(x => x.ruolo !== "cliente").map(x => x.id));
+    D.profili = (p.data || []).filter(x => x.ruolo === "cliente");
+    D.tuttiProfili = D.profili;
     D.agenti = (p.data || []).filter(x => x.ruolo === "agente");
     D.agenteBy = {}; D.agenti.forEach(a => D.agenteBy[a.id] = a);
     D.clientiDiAgente = {}; D.tuttiProfili.forEach(c => { if (c.agente_id) (D.clientiDiAgente[c.agente_id] = D.clientiDiAgente[c.agente_id] || []).push(c); });
     if (DEMO) D.provv = []; else { const pv = await db.rpc("provvigioni_mensili"); D.provv = pv.data || []; }
-    D.ordini = o.data || []; D.note = n.data || []; D.imp = {}; (i.data || []).forEach(r => D.imp[r.chiave] = r.valore);
+    D.ordini = (o.data || []).filter(x => !nonClienti.has(x.user_id)); D.note = n.data || []; D.imp = {}; (i.data || []).forEach(r => D.imp[r.chiave] = r.valore);
     D.cfg = Object.assign({}, Stats.DEFAULT_CFG, D.imp.avvisi || {});
     D.byUser = {}; D.ordini.forEach(x => { (D.byUser[x.user_id] = D.byUser[x.user_id] || []).push(x); });
     D.noteBy = {}; D.note.forEach(x => { (D.noteBy[x.user_id] = D.noteBy[x.user_id] || []).push(x); });
