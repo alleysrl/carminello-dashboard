@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>QR delle app Carminello</title>
+<link rel="icon" href="assets/icons/favicon-32.png">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; font-family:"Jost","Helvetica Neue",Arial,sans-serif; color:#1d2418; background:#f4f5f0; }
+  .bar { display:flex; gap:.6rem; align-items:center; padding:.8rem 1rem; background:#1f4a20; color:#fff; }
+  .bar a, .bar button { color:#fff; background:transparent; border:1px solid rgba(255,255,255,.5); border-radius:999px; padding:.35rem .9rem; font:600 .9rem "Jost",sans-serif; cursor:pointer; text-decoration:none; }
+  .bar b { margin-right:auto; font-size:1.05rem; }
+  main { display:grid; grid-template-columns:1fr 1fr; gap:1.5rem; max-width:1000px; margin:1.5rem auto; padding:0 1rem; }
+  @media (max-width:700px) { main { grid-template-columns:1fr; } }
+  .qr { background:#fff; border-radius:18px; padding:1.5rem; text-align:center; box-shadow:0 2px 10px rgba(29,36,24,.08); page-break-inside:avoid; }
+  .qr h1 { margin:0 0 .2rem; font-size:1.5rem; } .qr .col { display:inline-block; padding:.2rem .8rem; border-radius:999px; color:#fff; font-weight:600; font-size:.85rem; margin-bottom:.8rem; }
+  .qr img { width:min(100%, 360px); height:auto; image-rendering:pixelated; }
+  .qr p { margin:.4rem 0; } .qr .url { font-size:.9rem; word-break:break-all; } .qr small { color:#4f5a48; display:block; margin-top:.6rem; line-height:1.5; }
+  @media print { .bar { display:none; } body { background:#fff; } main { max-width:none; margin:0; gap:0; } .qr { box-shadow:none; border:1px solid #ddd; border-radius:0; page-break-after:always; min-height:95vh; display:flex; flex-direction:column; justify-content:center; } }
+</style>
+</head>
+<body>
+<div class="bar"><b>QR delle app Carminello</b><button onclick="window.print()">Stampa</button><a href="index.html#/impostazioni">Torna alla dashboard</a></div>
+<main>
+  <section class="qr">
+    <h1>Carminello</h1><span class="col" style="background:#c8452b">App clienti (rossa)</span>
+    <img src="assets/img/qr-clienti.png" alt="QR app clienti">
+    <p class="url">alleysrl.github.io/carminello-shop</p>
+    <small>Inquadra con la fotocamera del telefono. Per averla come app: su Android menu Chrome → "Aggiungi a schermata Home"; su iPhone Condividi → "Aggiungi alla schermata Home".</small>
+  </section>
+  <section class="qr">
+    <h1>Carminello Agenti</h1><span class="col" style="background:#2c5f8a">App agenti (blu)</span>
+    <img src="assets/img/qr-agenti.png" alt="QR app agenti">
+    <p class="url">alleysrl.github.io/carminello-agenti</p>
+    <small>Per i rappresentanti: registrazione con "Diventa agente", poi approvazione dal titolare. Stesse istruzioni per installarla sul telefono.</small>
+  </section>
+</main>
+</body>
+</html>

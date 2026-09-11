@@ -106,6 +106,7 @@
   const daLiquidare = id => provvAgente(id).reduce((t, r) => t + Number(r.maturata) - Number(r.liquidata), 0);
   const meseLabel = d => { const x = new Date(d); return x.toLocaleDateString("it-IT", { month: "long", year: "numeric" }); };
   const meseCorrente = () => { const n = new Date(); return n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-01"; };
+  function qrSvg(testo, px) { try { const q = window.qrcode(0, "M"); q.addData(testo); q.make(); return q.createSvgTag({ cellSize: 4, margin: 2, scalable: true }).replace("<svg ", `<svg style="width:${px}px;height:${px}px;background:#fff;border-radius:8px" `); } catch (e) { return ""; } }
   const origineTxt = c => { const a = c.agente_id ? D.agenteBy[c.agente_id] : null; return c.origine === "invito" ? "Registrato sul posto dall'agente " + nomeAg(a) : c.origine === "link" ? "Registrato dal link dell'agente " + nomeAg(a) : c.origine === "manuale" && a ? "Collegato da te all'agente " + nomeAg(a) : a ? "Agente: " + nomeAg(a) : "Registrato dal sito, senza agente"; };
 
   // ---------- attenzione: titolo, numerino sull'icona, suono, notifica ----------
@@ -480,6 +481,7 @@
     el("view").innerHTML = `
       <div class="page-title"><h1>Agenti</h1><span class="sub">${ag.length} agenti${daApp.length ? " · " + daApp.length + " da approvare" : ""}</span></div>
       ${daApp.length ? '<div class="notice warn">Ci sono agenti in attesa: apri la scheda, concorda la provvigione e approvali. Fino ad allora non possono registrare clienti.</div>' : ""}
+      <p class="small muted">Per far scaricare l'app agenti a un nuovo rappresentante: <a href="qr.html" target="_blank" rel="noopener">QR delle app</a>.</p>
       ${!ag.length ? '<div class="card"><p class="muted" style="margin:0">Nessun agente ancora. Gli agenti si registrano dall\'app agenti; in alternativa apri la scheda di un cliente e usa "Trasforma in agente".</p></div>' : `
       <div class="card"><div class="table-wrap"><table class="data"><thead><tr><th>Agente</th><th>Stato</th><th class="num">Provvigione</th><th class="num">Clienti</th><th class="num">Ordini questo mese</th><th class="num">Merce pagata (mese)</th><th class="num">Da liquidare</th></tr></thead><tbody>
         ${righe.map(({ a, m, cl, resto }) => `<tr class="click" data-go="#/agente/${a.id}">
@@ -515,7 +517,7 @@
         </div>
         <div class="actions" style="flex-direction:column;align-items:stretch">
           ${t ? `<a class="btn tel" href="tel:${esc(t)}">Chiama</a>` : ""}${wa ? `<a class="btn wa" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
-          ${a.codice_agente ? `<img alt="QR" width="140" height="140" style="align-self:center;border-radius:8px;background:#fff" src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(link)}">` : ""}
+          ${a.codice_agente ? `<div style="align-self:center">${qrSvg(link, 150)}</div>` : ""}
         </div>
       </div>
       <div class="kpis">
@@ -629,6 +631,14 @@
             <p class="small">Permesso del browser: <b>${!("Notification" in window) ? "non supportato" : Notification.permission === "granted" ? "concesso" : Notification.permission === "denied" ? "bloccato (sbloccalo dalle impostazioni del browser)" : "da concedere"}</b> · Push su questo dispositivo: <b id="i-push-stato">controllo…</b></p>
             ${isIOS() && !standalone() ? '<div class="notice warn">Su iPhone le notifiche funzionano solo dalla dashboard aggiunta alla schermata Home: Condividi → "Aggiungi alla schermata Home", poi apri l\'icona e attiva da lì.</div>' : ""}
             <div class="actions"><button class="btn" id="i-notif">Attiva le notifiche su questo dispositivo</button><button class="btn ghost" id="i-push-test">Invia una notifica di prova</button><button class="btn ghost" id="i-test">Prova il suono</button></div>
+          </div>
+          <div class="card"><h2>QR delle app</h2>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start">
+              <div style="text-align:center"><img src="assets/img/qr-clienti.png" alt="QR app clienti" width="130" height="130" style="border-radius:8px;image-rendering:pixelated"><br><span class="pill" style="background:#fbe6e3;color:#c0392b">App clienti</span></div>
+              <div style="text-align:center"><img src="assets/img/qr-agenti.png" alt="QR app agenti" width="130" height="130" style="border-radius:8px;image-rendering:pixelated"><br><span class="pill agente">App agenti</span></div>
+            </div>
+            <p class="small">Da far inquadrare a clienti e rappresentanti per aprire e installare le app. Ogni agente ha poi il suo QR personale nella sua scheda (collega il cliente a lui).</p>
+            <div class="actions"><a class="btn" href="qr.html" target="_blank" rel="noopener">Apri e stampa i QR</a></div>
           </div>
           <div class="card"><h2>Altre impostazioni</h2><p class="small">IBAN per il bonifico, email degli avvisi, fasce di spedizione, prodotti e prezzi ai privati si gestiscono nel pannello del negozio.</p><a class="btn ghost" href="${CONFIG.SHOP_URL}/admin.html" target="_blank" rel="noopener">Apri il pannello del negozio</a></div>
         </div>
