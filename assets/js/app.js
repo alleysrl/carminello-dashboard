@@ -33,6 +33,12 @@
   el("modal").addEventListener("click", e => { if (e.target === el("modal")) closeModal(); });
 
   // ---------- accesso ----------
+  function uscitaSicura(client, chiave) {
+    // 1) cancella la sessione sul dispositivo (non può fallire) 2) avvisa il server 3) pulizia manuale per sicurezza
+    return client.auth.signOut({ scope: "local" }).catch(() => {}).then(() => client.auth.signOut({ scope: "global" }).catch(() => {})).finally(() => {
+      try { Object.keys(localStorage).forEach(k => { if (k === chiave || k.startsWith(chiave + "-") || (chiave === "" && /^sb-.*-auth-token/.test(k))) localStorage.removeItem(k); }); } catch (_) {}
+    });
+  }
   function renderLogin(msg) {
     el("top").hidden = true;
     el("view").innerHTML = `
@@ -66,10 +72,10 @@
     const { data } = await db.auth.getSession(); user = data.session ? data.session.user : null;
     if (!user) return renderLogin();
     const { data: p } = await db.from("profiles").select("*").eq("id", user.id).maybeSingle(); profile = p;
-    if (!p || p.ruolo !== "admin") { await db.auth.signOut(); return renderLogin("Questo account non è amministratore."); }
+    if (!p || p.ruolo !== "admin") { await uscitaSicura(db, "carminello-dashboard-auth"); return renderLogin("Questo account non è amministratore."); }
     el("top").hidden = false;
     el("user").innerHTML = `<span>${esc(p.nome || p.email)}</span><button id="logout">Esci</button>`;
-    el("logout").onclick = async () => { await db.auth.signOut(); location.hash = ""; renderLogin(); };
+    el("logout").onclick = async () => { await uscitaSicura(db, "carminello-dashboard-auth"); user = null; profile = null; location.hash = ""; renderLogin(); };
     await loadAll(); route(); avviaTempoReale(); swReg();
   }
 
