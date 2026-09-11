@@ -22,18 +22,23 @@
 <body>
 <div class="bar"><b>QR delle app Carminello</b><button onclick="window.print()">Stampa</button><a href="index.html#/impostazioni">Torna alla dashboard</a></div>
 <main>
-  <section class="qr">
+  <section class="qr" id="clienti">
     <h1>Carminello</h1><span class="col" style="background:#c8452b">App clienti (rossa)</span>
     <img src="assets/img/qr-clienti.png" alt="QR app clienti">
     <p class="url">alleysrl.github.io/carminello-shop</p>
     <small>Inquadra con la fotocamera del telefono. Per averla come app: su Android menu Chrome → "Aggiungi a schermata Home"; su iPhone Condividi → "Aggiungi alla schermata Home".</small>
   </section>
-  <section class="qr">
+  <section class="qr" id="agenti">
     <h1>Carminello Agenti</h1><span class="col" style="background:#2c5f8a">App agenti (blu)</span>
     <img src="assets/img/qr-agenti.png" alt="QR app agenti">
     <p class="url">alleysrl.github.io/carminello-agenti</p>
     <small>Per i rappresentanti: registrazione con "Diventa agente", poi approvazione dal titolare. Stesse istruzioni per installarla sul telefono.</small>
   </section>
 </main>
+<script>
+  // ?app=clienti oppure ?app=agenti: mostra solo quel QR
+  const app = new URLSearchParams(location.search).get("app");
+  if (app === "clienti" || app === "agenti") { document.querySelectorAll("section.qr").forEach(s => { if (s.id !== app) s.remove(); }); document.querySelector("main").style.gridTemplateColumns = "1fr"; document.querySelector("main").style.maxWidth = "520px"; }
+</script>
 </body>
 </html>

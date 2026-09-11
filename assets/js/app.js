@@ -633,17 +633,16 @@
             <div class="actions"><button class="btn" id="i-notif">Attiva le notifiche su questo dispositivo</button><button class="btn ghost" id="i-push-test">Invia una notifica di prova</button><button class="btn ghost" id="i-test">Prova il suono</button></div>
           </div>
           <div class="card"><h2>QR delle app</h2>
-            <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start">
-              <div style="text-align:center"><img src="assets/img/qr-clienti.png" alt="QR app clienti" width="130" height="130" style="border-radius:8px;image-rendering:pixelated"><br><span class="pill" style="background:#fbe6e3;color:#c0392b">App clienti</span></div>
-              <div style="text-align:center"><img src="assets/img/qr-agenti.png" alt="QR app agenti" width="130" height="130" style="border-radius:8px;image-rendering:pixelated"><br><span class="pill agente">App agenti</span></div>
-            </div>
-            <p class="small">Da far inquadrare a clienti e rappresentanti per aprire e installare le app. Ogni agente ha poi il suo QR personale nella sua scheda (collega il cliente a lui).</p>
-            <div class="actions"><a class="btn" href="qr.html" target="_blank" rel="noopener">Apri e stampa i QR</a></div>
+            <p class="small">Scegli quale far inquadrare: si apre grande, da solo, con il tasto per stamparlo. Ogni agente ha poi il suo QR personale nella sua scheda.</p>
+            <div class="actions"><button class="btn red" id="i-qr-clienti">QR app clienti</button><button class="btn tel" id="i-qr-agenti">QR app agenti</button></div>
           </div>
           <div class="card"><h2>Altre impostazioni</h2><p class="small">IBAN per il bonifico, email degli avvisi, fasce di spedizione, prodotti e prezzi ai privati si gestiscono nel pannello del negozio.</p><a class="btn ghost" href="${CONFIG.SHOP_URL}/admin.html" target="_blank" rel="noopener">Apri il pannello del negozio</a></div>
         </div>
       </div>`;
     const inb = el("i-notif"); if (inb) inb.onclick = chiediPermessoNotifiche;
+    const QR_APP = { clienti: { titolo: "App clienti (rossa)", img: "assets/img/qr-clienti.png", url: CONFIG.SHOP_URL, colore: "#c8452b" }, agenti: { titolo: "App agenti (blu)", img: "assets/img/qr-agenti.png", url: CONFIG.AGENTI_URL, colore: "#2c5f8a" } };
+    const apriQr = k => { const q = QR_APP[k]; modal(`<div style="text-align:center"><h2 style="color:${q.colore}">${q.titolo}</h2><img src="${q.img}" alt="QR" style="width:min(320px,100%);image-rendering:pixelated;border-radius:10px;background:#fff"><p class="small" style="word-break:break-all;margin:.6rem 0">${esc(q.url)}</p><p class="small muted">Inquadra con la fotocamera. Per averla come app: Android → menu Chrome → "Aggiungi a schermata Home"; iPhone → Condividi → "Aggiungi alla schermata Home".</p><div class="actions" style="justify-content:center"><a class="btn" href="qr.html?app=${k}" target="_blank" rel="noopener">Stampa</a><button class="btn ghost" id="q-close">Chiudi</button></div></div>`); el("q-close").onclick = closeModal; };
+    el("i-qr-clienti").onclick = () => apriQr("clienti"); el("i-qr-agenti").onclick = () => apriQr("agenti");
     el("i-push-test").onclick = provaPush;
     pushStato().then(st => { const x = el("i-push-stato"); if (x) x.textContent = { attivo: "attive (anche ad app chiusa)", spento: "non attive", non_supportato: "non supportate da questo browser" }[st]; });
     el("i-test").onclick = () => { beep(); toast("Così suona un nuovo ordine", "ok"); };
