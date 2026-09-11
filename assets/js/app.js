@@ -82,8 +82,12 @@
       db.from("impostazioni").select("chiave,valore")
     ]);
     if (p.error || o.error) { toast("Errore nel caricamento: " + ((p.error || o.error).message), "err"); }
-    D.profili = (p.data || []).filter(x => x.ruolo !== "admin" || (x.prezzi_cliente && x.prezzi_cliente.length) || (o.data || []).some(y => y.user_id === x.id));
-    D.tuttiProfili = p.data || [];
+    D.profili = (p.data || []).filter(x => x.ruolo !== "agente" && (x.ruolo !== "admin" || (x.prezzi_cliente && x.prezzi_cliente.length) || (o.data || []).some(y => y.user_id === x.id)));
+    D.tuttiProfili = (p.data || []).filter(x => x.ruolo !== "agente");
+    D.agenti = (p.data || []).filter(x => x.ruolo === "agente");
+    D.agenteBy = {}; D.agenti.forEach(a => D.agenteBy[a.id] = a);
+    D.clientiDiAgente = {}; D.tuttiProfili.forEach(c => { if (c.agente_id) (D.clientiDiAgente[c.agente_id] = D.clientiDiAgente[c.agente_id] || []).push(c); });
+    if (DEMO) D.provv = []; else { const pv = await db.rpc("provvigioni_mensili"); D.provv = pv.data || []; }
     D.ordini = o.data || []; D.note = n.data || []; D.imp = {}; (i.data || []).forEach(r => D.imp[r.chiave] = r.valore);
     D.cfg = Object.assign({}, Stats.DEFAULT_CFG, D.imp.avvisi || {});
     D.byUser = {}; D.ordini.forEach(x => { (D.byUser[x.user_id] = D.byUser[x.user_id] || []).push(x); });
@@ -96,6 +100,13 @@
   const waLink = c => { let t = tel(c).replace(/[^\d+]/g, ""); if (!t) return null; if (t.startsWith("+")) t = t.slice(1); else if (!t.startsWith(CONFIG.WHATSAPP_PREFISSO)) t = CONFIG.WHATSAPP_PREFISSO + t; return "https://wa.me/" + t; };
   const daChiamare = () => D.profili.filter(c => ["rischio", "ritardo", "flessione"].includes(D.stat[c.id].stato));
   const nuoviOrdini = () => D.ordini.filter(o => o.visto === false && o.stato !== "annullato");
+  const nomeAg = a => a ? (((a.nome || "") + " " + (a.cognome || "")).trim() || a.email || "agente") : "—";
+  const agentiDaApprovare = () => (D.agenti || []).filter(a => !a.approvato);
+  const provvAgente = id => (D.provv || []).filter(r => r.agente_id === id);
+  const daLiquidare = id => provvAgente(id).reduce((t, r) => t + Number(r.maturata) - Number(r.liquidata), 0);
+  const meseLabel = d => { const x = new Date(d); return x.toLocaleDateString("it-IT", { month: "long", year: "numeric" }); };
+  const meseCorrente = () => { const n = new Date(); return n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-01"; };
+  const origineTxt = c => { const a = c.agente_id ? D.agenteBy[c.agente_id] : null; return c.origine === "invito" ? "Registrato sul posto dall'agente " + nomeAg(a) : c.origine === "link" ? "Registrato dal link dell'agente " + nomeAg(a) : c.origine === "manuale" && a ? "Collegato da te all'agente " + nomeAg(a) : a ? "Agente: " + nomeAg(a) : "Registrato dal sito, senza agente"; };
 
   // ---------- attenzione: titolo, numerino sull'icona, suono, notifica ----------
   function aggiornaAttenzione() {
@@ -180,19 +191,20 @@
     ["cruscotto", "Cruscotto", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="11" width="8" height="10" rx="2"/><rect x="3" y="14" width="8" height="7" rx="2"/></svg>'],
     ["chiamare", "Da chiamare", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>'],
     ["clienti", "Clienti", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-7 7-7s7 3 7 7"/><circle cx="17" cy="9" r="3"/><path d="M17 14c3 0 5 2 5 5"/></svg>'],
+    ["agenti", "Agenti", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="12" r="2.5"/><path d="M5 18c.5-2.2 2-3.5 4-3.5s3.5 1.3 4 3.5"/><path d="M15 10h4M15 14h4"/></svg>'],
     ["ordini", "Ordini", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16l-1.5 12h-13z"/><path d="M8 7a4 4 0 0 1 8 0"/></svg>'],
     ["impostazioni", "Impostazioni", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>']
   ];
   let currentPage = "cruscotto";
   function renderNav(cur) {
-    currentPage = cur; const n = daChiamare().length, no = nuoviOrdini().length;
-    el("nav").innerHTML = PAGES.map(([k, l, ic]) => `<a href="#/${k}" class="${cur === k ? "on" : ""}">${ic}${l}${k === "chiamare" && n ? `<span class="cnt">${n}</span>` : ""}${k === "ordini" && no ? `<span class="cnt blink">${no}</span>` : ""}</a>`).join("");
+    currentPage = cur; const n = daChiamare().length, no = nuoviOrdini().length, na = agentiDaApprovare().length;
+    el("nav").innerHTML = PAGES.map(([k, l, ic]) => `<a href="#/${k}" class="${cur === k ? "on" : ""}">${ic}${l}${k === "chiamare" && n ? `<span class="cnt">${n}</span>` : ""}${k === "ordini" && no ? `<span class="cnt blink">${no}</span>` : ""}${k === "agenti" && na ? `<span class="cnt">${na}</span>` : ""}</a>`).join("");
     aggiornaAttenzione();
   }
   function route() {
     const h = location.hash.replace(/^#\/?/, "") || "cruscotto"; const [page, arg] = h.split("/");
-    renderNav(page === "cliente" ? "clienti" : page); window.scrollTo(0, 0);
-    ({ cruscotto: vCruscotto, chiamare: vChiamare, clienti: vClienti, cliente: () => vCliente(arg), ordini: vOrdini, impostazioni: vImpostazioni }[page] || vCruscotto)();
+    renderNav(page === "cliente" ? "clienti" : page === "agente" ? "agenti" : page); window.scrollTo(0, 0);
+    ({ cruscotto: vCruscotto, chiamare: vChiamare, clienti: vClienti, cliente: () => vCliente(arg), agenti: vAgenti, agente: () => vAgente(arg), ordini: vOrdini, impostazioni: vImpostazioni }[page] || vCruscotto)();
   }
   window.addEventListener("hashchange", () => { if (user) route(); });
   async function refresh() { await loadAll(); route(); }
@@ -242,6 +254,8 @@
         <div class="kpi ${chiamare.length ? "alert" : ""}"><div class="l">Da chiamare</div><div class="v ${chiamare.length ? "warn" : ""}">${chiamare.length}</div><div class="d">${rischio ? rischio + " a rischio · " : ""}<a href="#/chiamare">apri la lista</a></div></div>
         <div class="kpi"><div class="l">Ordini da gestire</div><div class="v">${daPagare + daSpedire}</div><div class="d">${daPagare} da pagare · ${daSpedire} da spedire</div></div>
         <div class="kpi ${daAttivare ? "alert" : ""}"><div class="l">Clienti da attivare</div><div class="v ${daAttivare ? "warn" : ""}">${daAttivare}</div><div class="d"><a href="#/clienti/attivare">vedi</a></div></div>
+        ${agentiDaApprovare().length ? `<div class="kpi alert"><div class="l">Agenti da approvare</div><div class="v warn">${agentiDaApprovare().length}</div><div class="d"><a href="#/agenti">apri gli agenti</a></div></div>` : ""}
+        ${(D.agenti || []).length ? `<div class="kpi"><div class="l">Provvigioni da liquidare</div><div class="v">${money(D.agenti.reduce((t, a) => t + daLiquidare(a.id), 0))}</div><div class="d"><a href="#/agenti">tabellone</a></div></div>` : ""}
       </div>
       <div class="card">
         <h2>Cartoni per mese, ultimi 12 mesi</h2>
@@ -338,7 +352,7 @@
         ${th("nome", "Cliente")}${th("stato", "Stato")}${th("n", "Ordini", 1)}${th("cartoni", "Cartoni", 1)}${th("speso", "Speso", 1)}${th("ultimo", "Ultimo ordine")}${th("intervallo", "Ogni", 1)}${th("atteso", "Prossimo atteso")}${th("trend", "Trend 3 mesi", 1)}
       </tr></thead><tbody>
         ${list.map(({ c, s }) => `<tr class="click" data-go="#/cliente/${c.id}">
-          <td><b>${esc(nome(c))}</b><br><span class="small muted">${esc((c.indirizzo || {}).citta || "")}${cliSeg === "tutti" || cliSeg === "attivare" ? " · " + TIPO[c.tipo] : ""}${c.tipo !== "b2c" && !c.approvato ? ' · <span class="pill unpaid">da attivare</span>' : ""}</span></td>
+          <td><b>${esc(nome(c))}</b><br><span class="small muted">${esc((c.indirizzo || {}).citta || "")}${cliSeg === "tutti" || cliSeg === "attivare" ? " · " + TIPO[c.tipo] : ""}${c.tipo !== "b2c" && !c.approvato ? ' · <span class="pill unpaid">da attivare</span>' : ""}${c.agente_id ? ' · <span class="pill agente">agente: ' + esc(nomeAg(D.agenteBy[c.agente_id])) + "</span>" : ""}</span></td>
           <td><span class="pill ${Stats.STATI[s.stato].colore}">${Stats.STATI[s.stato].label}</span></td>
           <td class="num">${s.n}</td><td class="num">${s.cartoni}</td><td class="num">${money(s.speso)}</td>
           <td class="nowrap">${s.ultimo ? dateS(s.ultimo) + ` <span class="muted small">(${s.giorniDaUltimo} gg)</span>` : "—"}</td>
@@ -398,9 +412,15 @@
             ${D.prodB2b.map(p => `<div class="field"><label>${esc(p.nome_it)} — € a cartone</label><input type="number" step="0.01" min="0" data-price="${p.id}" value="${prezzi[p.id] != null ? prezzi[p.id] : ""}" placeholder="es. 32.00"></div>`).join("")}
             <div class="actions"><button class="btn" id="c-attiva">Salva prezzo e attiva</button>${c.approvato ? '<button class="btn ghost" id="c-sospendi">Sospendi</button>' : ""}</div>
           </div>` : ""}
+          <div class="card"><h2>Agente</h2>
+            <p class="small muted">${esc(origineTxt(c))}</p>
+            <div class="row"><div class="field"><select id="c-agente"><option value="">Nessun agente</option>${(D.agenti || []).map(a => `<option value="${a.id}" ${c.agente_id === a.id ? "selected" : ""}>${esc(nomeAg(a))}${a.codice_agente ? " (" + esc(a.codice_agente) + ")" : ""}${a.approvato ? "" : " · non attivo"}</option>`).join("")}</select></div><div class="field"><button class="btn ghost block" id="c-agente-save">Salva agente</button></div></div>
+            <p class="small muted" style="margin:0">Gli ordini futuri di questo cliente daranno la provvigione all'agente scelto. Quelli già fatti non cambiano.</p>
+          </div>
           <div class="card"><h2>Tipo di cliente</h2>
             <div class="row"><div class="field"><select id="c-tipo">${Object.entries(TIPO).map(([k, v]) => `<option value="${k}" ${c.tipo === k ? "selected" : ""}>${v}</option>`).join("")}</select></div><div class="field"><button class="btn ghost block" id="c-tipo-save">Cambia tipo</button></div></div>
             <p class="small muted" style="margin:0">Serve se un cliente si è registrato con il tipo sbagliato, o se un esercente diventa rivenditore.</p>
+            ${c.ruolo !== "admin" ? `<p style="margin:.8rem 0 0"><button class="btn sm ghost" id="c-rendi-agente">Trasforma in agente</button> <span class="small muted">se questa persona deve portare clienti e prendere una provvigione</span></p>` : ""}
           </div>
           <div class="card"><h2>Elimina cliente</h2>
             <p class="small muted">Cancella l'account con tutti i suoi ordini, note e prezzi. Serve solo per account di prova o creati per errore: per un cliente vero è meglio non farlo, si perde lo storico.</p>
@@ -426,6 +446,121 @@
       if (error) toast(error.message, "err"); else { toast("Cliente eliminato", "ok"); location.hash = "#/clienti/tutti"; refresh(); }
     };
     el("c-tipo-save").onclick = async () => { const { error } = await db.rpc("admin_cambia_tipo", { p_user_id: c.id, p_tipo: el("c-tipo").value }); if (error) toast(error.message, "err"); else { toast("Tipo aggiornato", "ok"); refresh(); } };
+    el("c-agente-save").onclick = async () => { const v = el("c-agente").value || null; const { error } = await db.rpc("admin_assegna_agente", { p_cliente_id: c.id, p_agente_id: v }); if (error) toast(error.message, "err"); else { toast(v ? "Agente collegato" : "Agente scollegato", "ok"); refresh(); } };
+    const ra = el("c-rendi-agente"); if (ra) ra.onclick = async () => {
+      if (!confirm("Trasformare " + nome(c) + " in agente? Non potrà più ordinare come cliente; lo approverai e gli darai la percentuale dalla pagina Agenti.")) return;
+      const { error } = await db.rpc("admin_cambia_ruolo", { p_user_id: c.id, p_ruolo: "agente" }); if (error) toast(error.message, "err"); else { toast("Ora è un agente: approvalo dalla pagina Agenti", "ok"); location.hash = "#/agente/" + c.id; refresh(); }
+    };
+  }
+
+  // ---------- AGENTI ----------
+  function provvTable(rows, opts) {
+    opts = opts || {};
+    if (!rows.length) return '<p class="muted small" style="margin:0">Nessuna provvigione ancora: arriveranno con i primi ordini pagati dei clienti degli agenti.</p>';
+    return `<div class="table-wrap"><table class="data"><thead><tr><th>Mese</th>${opts.conAgente ? "<th>Agente</th>" : ""}<th class="num">Ordini</th><th class="num">Cartoni</th><th class="num">Merce pagata</th><th class="num">Maturata</th><th class="num">In attesa di pagamento</th><th>Liquidazione</th></tr></thead><tbody>
+      ${rows.map(r => { const resto = Number(r.maturata) - Number(r.liquidata); const a = D.agenteBy[r.agente_id]; return `<tr>
+        <td class="nowrap"><b>${esc(meseLabel(r.mese))}</b></td>${opts.conAgente ? `<td><a href="#/agente/${r.agente_id}">${esc(nomeAg(a))}</a></td>` : ""}
+        <td class="num">${r.ordini}</td><td class="num">${r.cartoni}</td><td class="num">${money(r.fatturato)}</td><td class="num"><b>${money(r.maturata)}</b></td>
+        <td class="num muted">${Number(r.in_attesa) ? money(r.in_attesa) : "—"}</td>
+        <td>${Number(r.maturata) <= 0 ? '<span class="muted small">—</span>' : resto <= 0.005 ? `<span class="pill paid">liquidata</span> <button class="btn sm ghost" data-liq="${r.agente_id}|${r.mese}|0">annulla</button>` : `<span class="pill unpaid">da liquidare ${money(resto)}</span> <button class="btn sm" data-liq="${r.agente_id}|${r.mese}|1">Segna liquidata</button>`}</td></tr>`; }).join("")}
+    </tbody></table></div>`;
+  }
+  function bindLiq() {
+    el("view").querySelectorAll("[data-liq]").forEach(b => b.onclick = async () => {
+      const [ag, mese, on] = b.getAttribute("data-liq").split("|");
+      if (on === "1" && !confirm("Segnare come liquidate (pagate all'agente) le provvigioni di " + meseLabel(mese) + "?")) return;
+      const { error } = await db.rpc("admin_liquida_provvigioni", { p_agente_id: ag, p_mese: mese, p_liquidata: on === "1" });
+      if (error) toast(error.message, "err"); else { toast(on === "1" ? "Provvigioni segnate come liquidate" : "Liquidazione annullata", "ok"); refresh(); }
+    });
+  }
+  function vAgenti() {
+    const ag = D.agenti || []; const daApp = agentiDaApprovare(); const mc = meseCorrente();
+    const righe = ag.map(a => { const m = provvAgente(a.id).find(r => r.mese === mc) || {}; return { a, m, cl: (D.clientiDiAgente[a.id] || []).length, resto: daLiquidare(a.id) }; })
+      .sort((x, y) => (x.a.approvato === y.a.approvato ? 0 : x.a.approvato ? 1 : -1) || nomeAg(x.a).localeCompare(nomeAg(y.a)));
+    el("view").innerHTML = `
+      <div class="page-title"><h1>Agenti</h1><span class="sub">${ag.length} agenti${daApp.length ? " · " + daApp.length + " da approvare" : ""}</span></div>
+      ${daApp.length ? '<div class="notice warn">Ci sono agenti in attesa: apri la scheda, concorda la provvigione e approvali. Fino ad allora non possono registrare clienti.</div>' : ""}
+      ${!ag.length ? '<div class="card"><p class="muted" style="margin:0">Nessun agente ancora. Gli agenti si registrano dall\'app agenti; in alternativa apri la scheda di un cliente e usa "Trasforma in agente".</p></div>' : `
+      <div class="card"><div class="table-wrap"><table class="data"><thead><tr><th>Agente</th><th>Stato</th><th class="num">Provvigione</th><th class="num">Clienti</th><th class="num">Ordini questo mese</th><th class="num">Merce pagata (mese)</th><th class="num">Da liquidare</th></tr></thead><tbody>
+        ${righe.map(({ a, m, cl, resto }) => `<tr class="click" data-go="#/agente/${a.id}">
+          <td><b>${esc(nomeAg(a))}</b><br><span class="small muted">${esc(a.codice_agente || "")}${a.telefono ? " · " + esc(a.telefono) : ""}</span></td>
+          <td>${a.approvato ? '<span class="pill paid">attivo</span>' : '<span class="pill unpaid">da approvare</span>'}</td>
+          <td class="num">${a.provvigione_pct}%</td><td class="num">${cl}</td><td class="num">${m.ordini || 0}</td><td class="num">${money(m.fatturato || 0)}</td>
+          <td class="num">${resto > 0.005 ? "<b>" + money(resto) + "</b>" : "—"}</td></tr>`).join("")}
+      </tbody></table></div></div>
+      <div class="card"><h2>Provvigioni per mese</h2>
+        <p class="small muted">La provvigione matura sugli ordini pagati e non annullati, sul valore della merce (senza spedizione e contrassegno). Quando paghi un agente, premi "Segna liquidata" sul mese.</p>
+        ${provvTable(D.provv || [], { conAgente: true })}
+      </div>`}`;
+    bindRows(); bindLiq();
+  }
+  function vAgente(uid) {
+    const a = D.agenteBy[uid]; if (!a) { el("view").innerHTML = '<div class="notice err">Agente non trovato.</div>'; return; }
+    const clienti = (D.clientiDiAgente[a.id] || []).map(c => ({ c, s: D.stat[c.id] || Stats.cliente(c, D.byUser[c.id] || [], D.cfg) })).sort((x, y) => Stats.STATI[x.s.stato].prio - Stats.STATI[y.s.stato].prio);
+    const ord = D.ordini.filter(o => o.agente_id === a.id && o.stato !== "annullato"); const pagati = ord.filter(o => o.pagato);
+    const rows = provvAgente(a.id); const resto = daLiquidare(a.id);
+    const link = CONFIG.SHOP_URL + "/account.html?agente=" + (a.codice_agente || ""); const t = tel(a), wa = waLink(a);
+    el("view").innerHTML = `
+      <p><a href="#/agenti">← Agenti</a></p>
+      <div class="card head-cli">
+        <div class="info">
+          <h1 style="margin-bottom:.3rem">${esc(nomeAg(a))} <span class="pill agente">Agente</span> ${a.approvato ? '<span class="pill paid">attivo</span>' : '<span class="pill unpaid">da approvare</span>'}</h1>
+          <dl class="kv">
+            <dt>Contatti</dt><dd>${esc(a.email || "")}${t ? " · " + esc(t) : ""}</dd>
+            ${a.piva || a.ragione_sociale ? `<dt>Fiscale</dt><dd>${esc(a.ragione_sociale || "")}${a.piva ? " · P.IVA " + esc(a.piva) : ""}</dd>` : ""}
+            <dt>Codice</dt><dd><b>${esc(a.codice_agente || "—")}</b></dd>
+            <dt>Link clienti</dt><dd><a href="${esc(link)}" target="_blank" rel="noopener">${esc(link)}</a> <button class="btn sm ghost" id="ag-copy">Copia</button></dd>
+            <dt>Registrato il</dt><dd>${dateS(a.created_at)}${a.accordo_accettato_il ? " · accordo accettato il " + dateS(a.accordo_accettato_il) : ""}</dd>
+          </dl>
+        </div>
+        <div class="actions" style="flex-direction:column;align-items:stretch">
+          ${t ? `<a class="btn tel" href="tel:${esc(t)}">Chiama</a>` : ""}${wa ? `<a class="btn wa" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
+          ${a.codice_agente ? `<img alt="QR" width="140" height="140" style="align-self:center;border-radius:8px;background:#fff" src="https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(link)}">` : ""}
+        </div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><div class="l">Clienti</div><div class="v">${clienti.length}</div><div class="d">${clienti.filter(x => x.c.tipo !== "b2c" && !x.c.approvato).length ? clienti.filter(x => x.c.tipo !== "b2c" && !x.c.approvato).length + " da attivare" : ""}</div></div>
+        <div class="kpi"><div class="l">Ordini</div><div class="v">${ord.length}</div><div class="d">${ord.reduce((s, o) => s + o.cartoni, 0)} cartoni</div></div>
+        <div class="kpi"><div class="l">Merce pagata</div><div class="v">${money(pagati.reduce((s, o) => s + Number(o.subtotale), 0))}</div><div class="d">base di calcolo</div></div>
+        <div class="kpi"><div class="l">Provvigioni maturate</div><div class="v">${money(pagati.reduce((s, o) => s + Number(o.provvigione), 0))}</div><div class="d">${a.provvigione_pct}% sulla merce</div></div>
+        <div class="kpi ${resto > 0.005 ? "alert" : ""}"><div class="l">Da liquidare</div><div class="v ${resto > 0.005 ? "warn" : ""}">${money(resto)}</div><div class="d">${resto > 0.005 ? "segna i mesi pagati qui sotto" : "tutto liquidato"}</div></div>
+      </div>
+      <div class="grid two">
+        <div>
+          <div class="card"><h2>Provvigione e attivazione</h2>
+            <p class="small muted">Stato: ${a.approvato ? '<span class="pill paid">attivo, può registrare clienti</span>' : '<span class="pill unpaid">da approvare, non può ancora lavorare</span>'}</p>
+            <div class="row"><div class="field"><label>Provvigione (% sulla merce pagata)</label><input type="number" step="0.5" min="0" max="100" id="ag-pct" value="${a.provvigione_pct}"></div><div class="field"><label>Codice (lettere e numeri)</label><input id="ag-cod" value="${esc(a.codice_agente || "")}" maxlength="12" style="text-transform:uppercase"></div></div>
+            <div class="actions"><button class="btn" id="ag-attiva">${a.approvato ? "Salva" : "Salva e approva"}</button>${a.approvato ? '<button class="btn ghost" id="ag-sospendi">Sospendi</button>' : ""}</div>
+            <p class="small muted" style="margin:.6rem 0 0">All'approvazione l'agente riceve un'email con percentuale, codice e link. Se cambi la percentuale, vale per gli ordini da ora in poi.</p>
+          </div>
+          <div class="card"><h2>Provvigioni per mese</h2>${provvTable(rows)}</div>
+          <div class="card"><h2>Altro</h2>
+            <div class="actions"><button class="btn ghost" id="ag-cliente">Riporta a cliente</button><button class="btn red" id="ag-elimina">Elimina account</button></div>
+            <p class="small muted" style="margin:.6rem 0 0">"Riporta a cliente" toglie il ruolo agente: i suoi clienti restano ma senza agente. "Elimina" cancella l'account (i clienti restano).</p>
+          </div>
+        </div>
+        <div>
+          <div class="card"><h2>I suoi clienti <span class="muted small">(${clienti.length})</span></h2>
+            ${clienti.length ? `<div class="table-wrap"><table class="data"><thead><tr><th>Cliente</th><th>Stato</th><th class="num">Ordini</th><th>Ultimo</th></tr></thead><tbody>
+              ${clienti.map(({ c, s }) => `<tr class="click" data-go="#/cliente/${c.id}"><td><b>${esc(nome(c))}</b><br><span class="small muted">${TIPO[c.tipo]}${c.tipo !== "b2c" && !c.approvato ? ' · <span class="pill unpaid">da attivare</span>' : ""}</span></td><td><span class="pill ${Stats.STATI[s.stato].colore}">${Stats.STATI[s.stato].label}</span></td><td class="num">${s.n}</td><td class="nowrap">${s.ultimo ? dateS(s.ultimo) : "—"}</td></tr>`).join("")}
+            </tbody></table></div>` : '<p class="muted small" style="margin:0">Nessun cliente collegato. Può registrarli dall\'app agenti o con il suo link; tu puoi collegarne uno dalla scheda cliente.</p>'}
+          </div>
+        </div>
+      </div>`;
+    bindRows(); bindLiq();
+    el("ag-copy").onclick = async () => { try { await navigator.clipboard.writeText(link); toast("Link copiato", "ok"); } catch (e) { prompt("Copia il link:", link); } };
+    el("ag-attiva").onclick = async () => {
+      const pct = Number(el("ag-pct").value); if (!(pct >= 0 && pct <= 100)) { toast("Percentuale non valida", "err"); return; }
+      const { error } = await db.rpc("admin_imposta_agente", { p_user_id: a.id, p_approvato: true, p_pct: pct, p_codice: el("ag-cod").value.trim() || null });
+      if (error) toast(error.message, "err"); else { toast(a.approvato ? "Agente aggiornato" : "Agente approvato: gli arriva l'email", "ok"); refresh(); }
+    };
+    const sp = el("ag-sospendi"); if (sp) sp.onclick = async () => { const { error } = await db.rpc("admin_imposta_agente", { p_user_id: a.id, p_approvato: false }); if (error) toast(error.message, "err"); else { toast("Agente sospeso", "ok"); refresh(); } };
+    el("ag-cliente").onclick = async () => { if (!confirm("Togliere il ruolo agente a " + nomeAg(a) + "?")) return; const { error } = await db.rpc("admin_cambia_ruolo", { p_user_id: a.id, p_ruolo: "cliente" }); if (error) toast(error.message, "err"); else { toast("Ora è un cliente normale", "ok"); location.hash = "#/agenti"; refresh(); } };
+    el("ag-elimina").onclick = async () => {
+      if (!confirm("Eliminare definitivamente l'account di " + nomeAg(a) + "? I suoi clienti restano, senza agente.")) return;
+      if (prompt("Per confermare scrivi ELIMINA") !== "ELIMINA") return;
+      const { error } = await db.rpc("admin_elimina_cliente", { p_user_id: a.id }); if (error) toast(error.message, "err"); else { toast("Agente eliminato", "ok"); location.hash = "#/agenti"; refresh(); }
+    };
   }
 
   // ---------- ORDINI ----------
@@ -462,7 +597,8 @@
       const o = D.ordini.find(x => x.id === b.getAttribute("data-det")); const a = o.indirizzo || {}; const c = cli(o.user_id);
       modal(`<h2>Ordine ${o.numero}</h2><dl class="kv"><dt>Data</dt><dd>${dateL(o.created_at)}</dd><dt>Cliente</dt><dd>${esc(nome(Object.keys(c).length ? c : a))} · ${esc(c.email || "")} · ${esc(a.telefono || c.telefono || "")}</dd>
         <dt>Consegna</dt><dd>${esc([a.ragione_sociale, (a.nome || "") + " " + (a.cognome || ""), a.via, (a.cap || "") + " " + (a.citta || "") + " (" + (a.prov || "") + ")"].filter(x => x && x.trim()).join(", "))}</dd>
-        <dt>Note</dt><dd>${esc(o.note || "—")}</dd><dt>Pagamento</dt><dd>${PM[o.metodo_pagamento]} · ${o.pagato ? "pagato" + (o.pagato_il ? " il " + dateL(o.pagato_il) : "") : "non pagato"}</dd></dl>
+        <dt>Note</dt><dd>${esc(o.note || "—")}</dd><dt>Pagamento</dt><dd>${PM[o.metodo_pagamento]} · ${o.pagato ? "pagato" + (o.pagato_il ? " il " + dateL(o.pagato_il) : "") : "non pagato"}</dd>
+        ${o.agente_id ? `<dt>Agente</dt><dd><a href="#/agente/${o.agente_id}">${esc(nomeAg(D.agenteBy[o.agente_id]))}</a> · provvigione ${o.provvigione_pct}% = <b>${money(o.provvigione)}</b>${o.provvigione_liquidata_il ? " (liquidata)" : ""}</dd>` : ""}</dl>
         <h3 style="margin-top:1rem">Prodotti</h3>${(o.righe || []).map(r => `<div style="display:flex;justify-content:space-between;padding:.3rem 0;border-bottom:1px dashed var(--line)"><span>${r.qty} × ${esc(r.nome)} <span class="muted small">(${money(r.prezzo)} cad.)</span></span><b>${money(r.totale)}</b></div>`).join("")}
         <div style="display:flex;justify-content:space-between;padding:.3rem 0"><span>Spedizione</span><span>${money(o.spedizione)}</span></div>${Number(o.supplemento) ? `<div style="display:flex;justify-content:space-between;padding:.3rem 0"><span>Contrassegno</span><span>${money(o.supplemento)}</span></div>` : ""}
         <div style="display:flex;justify-content:space-between;padding:.5rem 0;font-weight:700;font-size:1.15rem"><span>Totale</span><span style="color:var(--green-d)">${money(o.totale)}</span></div>
