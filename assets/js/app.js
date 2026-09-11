@@ -413,11 +413,11 @@
             ${D.prodB2b.map(p => `<div class="field"><label>${esc(p.nome_it)} — € a cartone</label><input type="number" step="0.01" min="0" data-price="${p.id}" value="${prezzi[p.id] != null ? prezzi[p.id] : ""}" placeholder="es. 32.00"></div>`).join("")}
             <div class="actions"><button class="btn" id="c-attiva">Salva prezzo e attiva</button>${c.approvato ? '<button class="btn ghost" id="c-sospendi">Sospendi</button>' : ""}</div>
           </div>` : ""}
-          <div class="card"><h2>Agente</h2>
+          ${c.ruolo === "admin" ? `<div class="card"><h2>Agente</h2><p class="small muted" style="margin:0">Questo è il tuo account: un agente si collega solo ai clienti veri. Per provare, apri la scheda di un cliente registrato dal sito.</p></div>` : `<div class="card"><h2>Agente</h2>
             <p class="small muted">${esc(origineTxt(c))}</p>
             <div class="row"><div class="field"><select id="c-agente"><option value="">Nessun agente</option>${(D.agenti || []).map(a => `<option value="${a.id}" ${c.agente_id === a.id ? "selected" : ""}>${esc(nomeAg(a))}${a.codice_agente ? " (" + esc(a.codice_agente) + ")" : ""}${a.approvato ? "" : " · non attivo"}</option>`).join("")}</select></div><div class="field"><button class="btn ghost block" id="c-agente-save">Salva agente</button></div></div>
             <p class="small muted" style="margin:0">Gli ordini futuri di questo cliente daranno la provvigione all'agente scelto. Quelli già fatti non cambiano.</p>
-          </div>
+          </div>`}
           <div class="card"><h2>Tipo di cliente</h2>
             <div class="row"><div class="field"><select id="c-tipo">${Object.entries(TIPO).map(([k, v]) => `<option value="${k}" ${c.tipo === k ? "selected" : ""}>${v}</option>`).join("")}</select></div><div class="field"><button class="btn ghost block" id="c-tipo-save">Cambia tipo</button></div></div>
             <p class="small muted" style="margin:0">Serve se un cliente si è registrato con il tipo sbagliato, o se un esercente diventa rivenditore.</p>
@@ -447,7 +447,7 @@
       if (error) toast(error.message, "err"); else { toast("Cliente eliminato", "ok"); location.hash = "#/clienti/tutti"; refresh(); }
     };
     el("c-tipo-save").onclick = async () => { const { error } = await db.rpc("admin_cambia_tipo", { p_user_id: c.id, p_tipo: el("c-tipo").value }); if (error) toast(error.message, "err"); else { toast("Tipo aggiornato", "ok"); refresh(); } };
-    el("c-agente-save").onclick = async () => { const v = el("c-agente").value || null; const { error } = await db.rpc("admin_assegna_agente", { p_cliente_id: c.id, p_agente_id: v }); if (error) toast(error.message, "err"); else { toast(v ? "Agente collegato" : "Agente scollegato", "ok"); refresh(); } };
+    const cas = el("c-agente-save"); if (cas) cas.onclick = async () => { const v = el("c-agente").value || null; const { error } = await db.rpc("admin_assegna_agente", { p_cliente_id: c.id, p_agente_id: v }); if (error) toast(error.message, "err"); else { toast(v ? "Agente collegato" : "Agente scollegato", "ok"); refresh(); } };
     const ra = el("c-rendi-agente"); if (ra) ra.onclick = async () => {
       if (!confirm("Trasformare " + nome(c) + " in agente? Non potrà più ordinare come cliente; lo approverai e gli darai la percentuale dalla pagina Agenti.")) return;
       const { error } = await db.rpc("admin_cambia_ruolo", { p_user_id: c.id, p_ruolo: "agente" }); if (error) toast(error.message, "err"); else { toast("Ora è un agente: approvalo dalla pagina Agenti", "ok"); location.hash = "#/agente/" + c.id; refresh(); }
