@@ -644,7 +644,7 @@
             <p class="small">Scegli quale far inquadrare: si apre grande, da solo, con il tasto per stamparlo. Ogni agente ha poi il suo QR personale nella sua scheda.</p>
             <div class="actions"><button class="btn red" id="i-qr-clienti">QR app clienti</button><button class="btn tel" id="i-qr-agenti">QR app agenti</button></div>
           </div>
-          <div class="card"><h2>Altre impostazioni</h2><p class="small">IBAN per il bonifico, email degli avvisi, fasce di spedizione, prodotti e prezzi ai privati si gestiscono nel pannello del negozio.</p><a class="btn ghost" href="${CONFIG.SHOP_URL}/admin.html" target="_blank" rel="noopener">Apri il pannello del negozio</a></div>
+          <div class="card"><h2>IBAN e altre impostazioni</h2><p class="small">IBAN per il bonifico, email degli avvisi, fasce di spedizione, prodotti e prezzi ai privati si gestiscono nel pannello del negozio. Se ti chiede di accedere, usa lo stesso account del titolare.</p><div class="actions"><a class="btn" href="${CONFIG.SHOP_URL}/admin.html#impostazioni" target="_blank" rel="noopener">Inserisci o cambia l'IBAN</a><a class="btn ghost" href="${CONFIG.SHOP_URL}/admin.html" target="_blank" rel="noopener">Apri il pannello del negozio</a></div></div>
         </div>
       </div>`;
     const inb = el("i-notif"); if (inb) inb.onclick = chiediPermessoNotifiche;
