@@ -82,7 +82,7 @@
   // ---------- dati ----------
   async function loadAll() {
     const [p, o, n, i] = DEMO ? (function () { const d = Demo.genera(); return [{ data: d.profili }, { data: d.ordini }, { data: d.note }, { data: Object.entries(d.imp).map(([chiave, valore]) => ({ chiave, valore })) }]; })() : await Promise.all([
-      db.from("profiles").select("*, prezzi_cliente(product_id, prezzo)").order("created_at", { ascending: false }),
+      db.from("profiles").select("*, prezzi_cliente(product_id, prezzo, aggiornato_da, aggiornato_il)").order("created_at", { ascending: false }),
       db.from("orders").select("*").order("created_at", { ascending: false }).limit(5000),
       db.from("note_clienti").select("*").order("created_at", { ascending: false }),
       db.from("impostazioni").select("chiave,valore")
@@ -115,6 +115,10 @@
   const meseLabel = d => { const x = new Date(d); return x.toLocaleDateString("it-IT", { month: "long", year: "numeric" }); };
   const meseCorrente = () => { const n = new Date(); return n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-01"; };
   function qrSvg(testo, px) { try { const q = window.qrcode(0, "M"); q.addData(testo); q.make(); return q.createSvgTag({ cellSize: 4, margin: 2, scalable: true }).replace("<svg ", `<svg style="width:${px}px;height:${px}px;background:#fff;border-radius:8px" `); } catch (e) { return ""; } }
+  // Gli agenti non possono vendere sotto 1,70 € a base (cartone da 20 → 34,00 €).
+  // Qui serve solo a mostrarti il limite: tu puoi fare il prezzo che vuoi.
+  const MIN_BASE = 1.70;
+  const minCartone = p => Math.round(MIN_BASE * (p.pezzi || 1) * 100) / 100;
   const origineTxt = c => { const a = c.agente_id ? D.agenteBy[c.agente_id] : null; return c.origine === "invito" ? "Registrato sul posto dall'agente " + nomeAg(a) : c.origine === "link" ? "Registrato dal link dell'agente " + nomeAg(a) : c.origine === "manuale" && a ? "Collegato da te all'agente " + nomeAg(a) : a ? "Agente: " + nomeAg(a) : "Registrato dal sito, senza agente"; };
 
   // ---------- attenzione: titolo, numerino sull'icona, suono, notifica ----------
@@ -380,7 +384,9 @@
     const c = D.tuttiProfili.find(x => x.id === uid); if (!c) { el("view").innerHTML = '<div class="notice err">Cliente non trovato.</div>'; return; }
     const s = D.stat[c.id] || Stats.cliente(c, D.byUser[c.id] || [], D.cfg); const note = D.noteBy[c.id] || []; const a = c.indirizzo || {};
     if (!D.prodB2b) { const { data } = await db.from("products").select("*").eq("canale", "b2b").order("ordine"); D.prodB2b = data || []; }
-    const prezzi = {}; (c.prezzi_cliente || []).forEach(p => prezzi[p.product_id] = p.prezzo);
+    const prezzi = {}; const prezziInfo = {};
+    (c.prezzi_cliente || []).forEach(p => { prezzi[p.product_id] = p.prezzo; prezziInfo[p.product_id] = p; });
+    const chiFu = id => { const a = id ? D.agenteBy[id] : null; return a ? "dall'agente " + nomeAg(a) : id ? "da te" : ""; };
     const serie = Stats.mensile(s.ordini, 12); const wa = waLink(c), t = tel(c);
     const ordiniDesc = [...s.ordini].reverse(); const tutti = (D.byUser[c.id] || []);
     el("view").innerHTML = `
@@ -417,8 +423,12 @@
         </div>
         <div>
           ${c.tipo !== "b2c" ? `<div class="card"><h2>Prezzo riservato e attivazione</h2>
-            <p class="small muted">Stato: ${c.approvato ? '<span class="pill paid">attivo, può ordinare</span>' : '<span class="pill unpaid">da attivare, non può ordinare</span>'}</p>
-            ${D.prodB2b.map(p => `<div class="field"><label>${esc(p.nome_it)} — € a cartone</label><input type="number" step="0.01" min="0" data-price="${p.id}" value="${prezzi[p.id] != null ? prezzi[p.id] : ""}" placeholder="es. 32.00"></div>`).join("")}
+            <p class="small muted">Stato: ${c.approvato ? '<span class="pill paid">attivo, può ordinare</span>' : '<span class="pill unpaid">da attivare, non può ordinare</span>'}${c.approvato && c.attivato_il ? " · attivato " + chiFu(c.attivato_da) + " il " + dateS(c.attivato_il) : ""}${!c.approvato && c.sospeso_il ? " · sospeso " + chiFu(c.sospeso_da) + " il " + dateS(c.sospeso_il) + ": l'agente non può riattivarlo" : ""}</p>
+            ${D.prodB2b.map(p => { const m = minCartone(p); const i = prezziInfo[p.id] || {}; const sotto = prezzi[p.id] != null && Number(prezzi[p.id]) < m;
+              return `<div class="field"><label>${esc(p.nome_it)} — € a cartone</label>
+                <input type="text" inputmode="decimal" autocomplete="off" data-price="${p.id}" value="${prezzi[p.id] != null ? Number(prezzi[p.id]).toFixed(2).replace(".", ",") : ""}" placeholder="es. ${m.toFixed(2).replace(".", ",")}" aria-label="Euro a cartone">
+                <div class="small muted">Minimo per gli agenti ${money(m)} (${money(MIN_BASE)} a base × ${p.pezzi} basi); tu puoi anche scendere.${i.aggiornato_il ? " · Prezzo messo " + chiFu(i.aggiornato_da) + " il " + dateS(i.aggiornato_il) : ""}${sotto ? ' · <b style="color:var(--red)">sotto il minimo degli agenti</b>' : ""}</div>
+              </div>`; }).join("")}
             <div class="actions"><button class="btn" id="c-attiva">Salva prezzo e attiva</button>${c.approvato ? '<button class="btn ghost" id="c-sospendi">Sospendi</button>' : ""}</div>
           </div>` : ""}
           ${c.ruolo === "admin" ? `<div class="card"><h2>Agente</h2><p class="small muted" style="margin:0">Questo è il tuo account: un agente si collega solo ai clienti veri. Per provare, apri la scheda di un cliente registrato dal sito.</p></div>` : `<div class="card"><h2>Agente</h2>
@@ -443,8 +453,13 @@
     bindCallButtons();
     el("view").querySelectorAll("[data-delnota]").forEach(x => x.onclick = async e => { e.preventDefault(); if (!confirm("Eliminare questa nota?")) return; const { error } = await db.rpc("admin_elimina_nota", { p_id: x.getAttribute("data-delnota") }); if (error) toast(error.message, "err"); else refresh(); });
     const attiva = el("c-attiva"); if (attiva) attiva.onclick = async () => {
-      const p = {}; let missing = false; el("view").querySelectorAll("[data-price]").forEach(i => { if (i.value === "") missing = true; else p[i.getAttribute("data-price")] = Number(i.value); });
+      const p = {}; let missing = false, storto = false;
+      el("view").querySelectorAll("[data-price]").forEach(i => {
+        const v = Number(String(i.value).replace(",", ".").trim());        // in Italia si scrive 34,50
+        if (!String(i.value).trim()) missing = true; else if (!isFinite(v)) storto = true; else p[i.getAttribute("data-price")] = Math.round(v * 100) / 100;
+      });
       if (missing) { toast("Scrivi il prezzo prima di attivare", "err"); return; }
+      if (storto) { toast("Il prezzo deve essere un numero, per esempio 34,50", "err"); return; }
       const { error } = await db.rpc("admin_imposta_cliente", { p_user_id: c.id, p_approvato: true, p_prezzi: p }); if (error) toast(error.message, "err"); else { toast("Cliente attivato", "ok"); refresh(); }
     };
     const sosp = el("c-sospendi"); if (sosp) sosp.onclick = async () => { const { error } = await db.rpc("admin_imposta_cliente", { p_user_id: c.id, p_approvato: false, p_prezzi: {} }); if (error) toast(error.message, "err"); else { toast("Cliente sospeso", "ok"); refresh(); } };
