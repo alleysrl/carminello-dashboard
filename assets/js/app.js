@@ -82,7 +82,8 @@
   // ---------- dati ----------
   async function loadAll() {
     const [p, o, n, i] = DEMO ? (function () { const d = Demo.genera(); return [{ data: d.profili }, { data: d.ordini }, { data: d.note }, { data: Object.entries(d.imp).map(([chiave, valore]) => ({ chiave, valore })) }]; })() : await Promise.all([
-      db.from("profiles").select("*, prezzi_cliente!prezzi_cliente_user_id_fkey(product_id, prezzo, aggiornato_da, aggiornato_il)")   // va detto quale collegamento usare: il cliente, non chi ha messo il prezzo.order("created_at", { ascending: false }),
+      // la tabella dei prezzi è collegata ai profili due volte (il cliente e chi ha messo il prezzo): qui serve il cliente
+      db.from("profiles").select("*, prezzi_cliente!prezzi_cliente_user_id_fkey(product_id, prezzo, aggiornato_da, aggiornato_il)").order("created_at", { ascending: false }),
       db.from("orders").select("*").order("created_at", { ascending: false }).limit(5000),
       db.from("note_clienti").select("*").order("created_at", { ascending: false }),
       db.from("impostazioni").select("chiave,valore")
