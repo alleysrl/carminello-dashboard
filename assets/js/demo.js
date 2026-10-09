@@ -16,7 +16,7 @@ const Demo = (function () {
       let t = creato + 2 * DAY; let k = 0;
       while (t < now - pattern(k, dal) * DAY) {
         const cart = Math.max(1, Math.round(cartoniMedi * (0.6 + rnd() * 0.8) * (pattern === calo && t > now - 90 * DAY ? 0.5 : 1)));
-        const unit = tipo === "b2c" ? 14.99 : prezzo; const sub = +(cart * unit).toFixed(2); const sped = cart >= 10 ? 0 : cart >= 4 ? 24.99 : [0, 6.99, 15.98, 20.97][cart];
+        const unit = tipo === "b2c" ? 19.90 : prezzo; const sub = +(cart * unit).toFixed(2); const sped = cart >= 10 ? 0 : cart >= 4 ? 24.99 : [0, 6.99, 15.98, 20.97][cart];
         const metodo = tipo === "b2c" ? pick(["carta", "carta", "bonifico"]) : pick(["bonifico", "contrassegno", "carta"]);
         ordini.push({ id: "o" + num, numero: num++, user_id: id, tipo, stato: t < now - 3 * DAY ? "spedito" : (metodo === "bonifico" ? "da_pagare" : "da_spedire"), metodo_pagamento: metodo, pagato: t < now - 3 * DAY || metodo === "carta", cartoni: cart, subtotale: sub, spedizione: sped, supplemento: metodo === "contrassegno" ? 5 : 0, totale: +(sub + sped + (metodo === "contrassegno" ? 5 : 0)).toFixed(2), indirizzo: Object.assign({ nome: p.nome, cognome: p.cognome, telefono: p.telefono, ragione_sociale: p.ragione_sociale }, p.indirizzo), righe: [{ product_id: tipo === "b2c" ? "base-33-cartone-8" : "base-33-cartone-20", nome: tipo === "b2c" ? "Base Pizza Carminello 33 cm — cartone da 8" : "Base Pizza Carminello 33 cm — cartone da 20", qty: cart, prezzo: unit, totale: sub }], created_at: new Date(t).toISOString() });
         t += ritmo * DAY * (0.7 + rnd() * 0.6); k++;
